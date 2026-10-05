@@ -17,7 +17,8 @@ export async function explainEvidence(env, caseData, proposal, fetcher = fetch, 
       AI_SUMMARY_SCHEMA, validateAISummary, fetcher, now);
     return {engine: 'OpenRouter / ' + result.model + (result.fallbackUsed ? ' (paid fallback)' : ''),
       text: result.value.summary};
-  } catch {
-    return {...deterministic, engine: 'Deterministic fallback', warning: AI_PUBLIC_WARNING};
+  } catch (error) {
+    const diagnostic = /^AI_[A-Z_]+$/.test(error?.code || '') ? error.code : 'AI_UNAVAILABLE';
+    return {...deterministic, engine: 'Deterministic fallback', warning: AI_PUBLIC_WARNING, diagnostic};
   }
 }
