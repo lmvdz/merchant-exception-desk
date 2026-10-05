@@ -3,13 +3,20 @@
 Open-source single-merchant prototype: evidence-backed partial refunds, human approval, lost-response injection, reconciliation, and an audit trail.
 
 ## Run locally
-Requires Node.js 24. No dependencies or installation needed.
 
-    npm test
-    npm run build
-    npm start
+Requires Node.js 24 or newer. The application build uses no npm dependencies.
 
-Open http://127.0.0.1:4311. PORT changes the local port. State persists in ignored `.local/desk.sqlite`. Hosting configuration is intentionally omitted. The default mode uses fictional orders, deterministic rules and simulated payment receipts. It does not call live AI or PayPal.
+```sh
+node scripts/setup-private.mjs
+node scripts/build-native.mjs
+node --test --test-isolation=none tests/*.test.mjs
+node scripts/validate-artifact.mjs
+node scripts/dev-native.mjs
+```
+
+Open http://127.0.0.1:4311/ for the public project overview, then choose the workspace link or visit /app. Read SITE_OWNER_KEY from the ignored .dev.vars file and enter it at the access gate. Keep this key out of source control, screenshots, recordings, and public submission text. PORT overrides the local port. State persists in ignored .local/ SQLite files; the deployed Worker uses its D1 DB binding.
+
+The initial configuration uses synthetic examples and the no-money simulator. [Private provider setup](docs/PROVIDER-SETUP.md) explains the optional AI and PayPal sandbox configuration. [Cloudflare deployment](docs/DEPLOYMENT.md) describes hosting at https://resolution.inkwell.finance. Deployment status is reported separately from implementation.
 
 ## Demo
 1. Select EX-1042 and Analyze case. Missing pouch: $34; delivered items are excluded.
@@ -38,8 +45,40 @@ Use existing sandbox business credentials after operator authorization. Configur
 
 See .env.example. Do not commit secrets or use NEXT_PUBLIC_ variables. For local configuration use a secret manager or node --env-file=/private/path scripts/dev-native.mjs. Configuration alone does not verify connectivity.
 
-## Optional AI
-An existing OPENAI_API_KEY enables explanation-only calls; OPENAI_MODEL defaults to gpt-4.1-mini. Customer text is untrusted data. AI output cannot change approved amounts, policy or execution. Provider errors disclose deterministic fallback. The adapter is unconfigured and has not been tested against a live AI provider; the default is deterministic.
+## Optional OpenRouter AI (synthetic demo only)
+
+The default remains deterministic and requires no keys. The server-only adapter uses OpenRouter's [Chat Completions API](https://openrouter.ai/docs/api_reference/overview), not an OpenAI key substituted into a different endpoint. Enable it only for synthetic demo data with an existing server-held key:
+
+```dotenv
+AI_MODE=openrouter
+OPENROUTER_API_KEY=<existing server-only key>
+AI_BASE_URL=https://openrouter.ai/api/v1
+AI_PRIMARY_MODEL=liquid/lfm-2.5-2.6b:free
+AI_FALLBACK_MODEL=deepseek/deepseek-v4.1-flash
+AI_ALLOW_PAID_FALLBACK=false
+AI_FALLBACK_MAX_PROMPT_PRICE=0.02
+AI_FALLBACK_MAX_COMPLETION_PRICE=0.50
+```
+
+No credentials are included or configured. The old `OPENAI_API_KEY` and `AI_MODE=openai` no longer activate an adapter. A key alone does not enable AI: `AI_MODE=openrouter` is also required. `.env` files remain ignored. Configure the base URL only on the server using a trusted HTTPS OpenRouter-compatible endpoint; credentials in URLs, query strings and redirects are rejected. Never put keys in browser code or a public environment variable.
+
+**Synthetic data only.** No real customer, personal, account, capture, payment or sensitive financial information may be entered or sent. The [stealth model terms](https://openrouter.ai/terms/stealth) restrict sensitive inputs; its anonymous provider may retain prompts. This integration is a demonstration, not a production customer-data workflow. The input restrictions below apply to both primary and paid fallback.
+
+The prepared configuration explicitly selects `liquid/lfm-2.5-2.6b:free`, checked against the OpenRouter model catalog on October 5, 2026. The adapter still requires a zero-price provider; catalog availability is not live inference evidence. The legacy Space Bunny default has a retirement guard and is not used by the prepared configuration. If no free route is available, deterministic rules remain available and paid fallback stays disabled.
+
+Paid fallback is **disabled by default**. Setting the server variable `AI_ALLOW_PAID_FALLBACK=true` deliberately opts into at most one separate [DeepSeek V4.1 Flash](https://openrouter.ai/deepseek/deepseek-v4.1-flash) request when the primary is unavailable, retired or produces invalid output. Authentication, billing and invalid-request errors do not trigger fallback. Its strict schema is requested only on that separate opted-in attempt; a schema requirement cannot route the primary to a paid model. The actual fallback is labeled in the UI.
+
+The primary always has a zero-price provider filter, including when its model is overridden. Fallback filters cap provider prices at $0.02/M input and $0.50/M output by default (per-request price must be zero). These are price ceilings, not a guaranteed available route or account spending budget. [Provider prices and availability vary](https://openrouter.ai/docs/guides/routing/provider-selection); no qualifying provider means deterministic fallback. Deliberately changing these server-side caps can change costs. Requests specify one model, disable provider failover, and never use automatic model routing.
+
+There are at most two free-primary attempts for transient HTTP/transport failures and one opted-in paid attempt, each with a 6-second timeout and 256-token output limit. Inputs and response bytes are bounded. Malformed JSON, extra fields, tool calls, refusals, truncated output and invalid values are rejected. Errors shown to users contain no provider bodies, keys or raw transport details. Model output never authorizes a payment or changes server policy.
+
+This integration has been tested only with in-process mock transport. No live OpenRouter call, signup, credential setup, paid request, deployment or real payment has been performed. Live connectivity and browser visual QA are unverified.
+
+### Merchant input boundary
+
+Only canonical fictional `CASES` evidence and its recomputed fixture policy result are sent. Customer names, order IDs, capture IDs, session IDs and caller-provided replacement text are omitted. AI explains evidence only; refund amount, approval, ledger claims and reconciliation remain deterministic. Failed AI returns the fixture explanation with a visible fallback warning.
+
+For local setup, edit the ignored `.dev.vars` file and restart the server. The scripts load missing process variables from this file. Explicit process variables take precedence.
 
 ## Safety and limitations
 - Server recomputes policy and requires exact approved amount.
@@ -52,7 +91,7 @@ An existing OPENAI_API_KEY enables explanation-only calls; OPENAI_MODEL defaults
 - Fixtures are not real fulfillment integrations. No signed webhooks, outbox worker, webhook backfill or production monitoring is included. Audit is durable, not tamper-proof.
 
 ## Verification
-12 automated tests cover: policy math, prompt injection, claim window, approval/amount validation, concurrency, lost-response reconciliation, cross-session sandbox duplicates, immutable retry payload/capture, old retry window, sandbox adapter contracts, API errors/origin checks and reset isolation.
+The original 12 automated tests are preserved, alongside mocked OpenRouter transport, privacy and refund-invariant tests. Original coverage: policy math, prompt injection, claim window, approval/amount validation, concurrency, lost-response reconciliation, cross-session sandbox duplicates, immutable retry payload/capture, old retry window, sandbox adapter contracts, API errors/origin checks and reset isolation.
 
 Rendered mobile, keyboard, zoom and visual QA have not been verified. Native dialogs, semantic buttons, visible focus, responsive CSS, and empty/error/reset states are implemented; they are not certified accessible.
 

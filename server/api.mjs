@@ -2,6 +2,7 @@ import {CASES,POLICY,resolveCase,evaluate} from './domain.mjs';
 import {Repository} from './repository.mjs';
 import {PayPalSandbox,sandboxConfig} from './paypal.mjs';
 import {explainEvidence} from './ai.mjs';
+import {aiConfigured, AI_PUBLIC_WARNING} from './ai-provider.mjs';
 import {approveRefund,reconcileRefund,demoAdapter} from './service.mjs';
 export async function handleDesk(request,env){
  const url=new URL(request.url);if(!url.pathname.startsWith('/api/desk'))return null;
@@ -9,7 +10,7 @@ export async function handleDesk(request,env){
  const respond=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Set-Cookie':`desk_session=${session}; Path=/; HttpOnly; SameSite=Strict; Max-Age=604800${url.protocol==='https:'?'; Secure':''}`}});
  try{
   const repo=new Repository(env.DB);const config=sandboxConfig(env);
-  if(request.method==='GET')return respond({cases:CASES,policy:POLICY,operations:await repo.list(session),audit:await repo.events(session),integration:{sandboxReady:config.ready,sandboxCases:Object.keys(config.captures),aiReady:!!env.OPENAI_API_KEY},session});
+  if(request.method==='GET')return respond({cases:CASES,policy:POLICY,operations:await repo.list(session),audit:await repo.events(session),integration:{sandboxReady:config.ready,sandboxCases:Object.keys(config.captures),aiReady:aiConfigured(env)},session});
   if(request.method!=='POST')return respond({error:'Method not allowed'},405);
   const origin=request.headers.get('origin');if(origin&&origin!==url.origin)return respond({error:'Cross-origin request rejected'},403);
   if(!request.headers.get('content-type')?.includes('application/json'))return respond({error:'JSON request required'},415);
@@ -17,7 +18,7 @@ export async function handleDesk(request,env){
   if(input.action==='reset'){session=crypto.randomUUID();return respond({ok:true});}
   const c=resolveCase(input.caseId);
   if(input.action==='analyze'){
-   const proposal=evaluate(c);let explanation;try{explanation=await explainEvidence(env,c,proposal);}catch(error){explanation={engine:'Deterministic fallback',text:proposal.summary,warning:error.message};}
+   const proposal=evaluate(c);let explanation;try{explanation=await explainEvidence(env,c,proposal);}catch(error){explanation={engine:'Deterministic fallback',text:proposal.summary,warning:AI_PUBLIC_WARNING};}
    await repo.event(session,c.id,'Evidence evaluated',`Order, capture fixture and fulfillment checked against ${POLICY.version}.${proposal.blockedInstruction?' Customer instructions excluded from policy authority.':''}`);
    return respond({proposal,explanation});
   }
