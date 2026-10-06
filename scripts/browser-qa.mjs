@@ -52,6 +52,22 @@ try{
   await page.getByRole('button',{name:'Build quote',exact:true}).click();await page.locator('[data-slot]:not(:disabled)').first().click();await page.locator('#save-quote').click();await page.locator('#approve-check').check();await page.locator('#approve').click();await page.locator('#create-order').click();await page.locator('#capture').click();await page.locator('#receipt:not(.hidden)').waitFor();
  }
  record('fixture workflow outcome',true);await page.screenshot({path:root+'/outcome.png',fullPage:true});
+ if(project.id==='merchant-exception-desk'){
+  // Rendering regression only: existing completed local rows, no provider I/O.
+  const displayFixture=await page.evaluate(async()=>await(await fetch('/api/desk')).json());
+  const completedDemo=displayFixture.operations.find(o=>o.case_id==='EX-1042'&&o.mode==='demo'&&o.status==='completed');assert.ok(completedDemo);
+  displayFixture.integration.sandboxReady=true;displayFixture.integration.sandboxCases=['EX-1042'];
+  displayFixture.operations.push({...completedDemo,mode:'sandbox',capture_id:'FIXTURE-SANDBOX-CAPTURE',refund_id:'FIXTURE-SANDBOX-REFUND',provider_status:'COMPLETED'});
+  await page.route(origin+'/api/desk',async route=>{if(route.request().method()==='GET')await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(displayFixture)});else await route.continue();});
+  await page.reload({waitUntil:'domcontentloaded'});await page.locator('#payment-mode').waitFor();
+  assert.deepEqual(await page.locator('#payment-mode option').evaluateAll(options=>options.map(o=>o.value)),['demo','sandbox']);
+  assert.ok(await page.getByRole('button',{name:'Recheck evidence',exact:true}).isVisible());
+  await page.locator('#payment-mode').selectOption('sandbox');await page.getByText('FIXTURE-SANDBOX-REFUND',{exact:true}).waitFor();
+  assert.ok(await page.getByRole('button',{name:'Recheck evidence',exact:true}).isVisible());
+  record('completed fixture keeps both modes and read-only evidence recheck',true);
+  await page.screenshot({path:root+'/completed-mode-controls.png',fullPage:true});await page.unroute(origin+'/api/desk');
+ }
+
  const appScan=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();report.violations.push(...appScan.violations.map(v=>({viewport:'application',id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary}))})));
  const noJS=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:844}});const fallback=await noJS.newPage();await fallback.goto(origin);record('no-JS content and navigation',await fallback.locator('h1').isVisible()&&await fallback.getByRole('link',{name:'Explore the flow'}).first().isVisible());await fallback.screenshot({path:root+'/no-javascript.png',fullPage:true});await noJS.close();
  record('no browser runtime errors',report.errors.length===0);
