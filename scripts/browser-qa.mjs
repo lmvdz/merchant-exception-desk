@@ -65,6 +65,8 @@ try{
   await page.locator('#payment-mode').selectOption('sandbox');await page.getByText('FIXTURE-SANDBOX-REFUND',{exact:true}).waitFor();
   assert.ok(await page.getByRole('button',{name:'Recheck evidence',exact:true}).isVisible());
   record('completed fixture keeps both modes and read-only evidence recheck',true);
+  await page.getByRole('button',{name:'Recheck evidence',exact:true}).click();await page.locator('.rechecked-evidence p').first().waitFor();
+  record('completed fixture displays its freshly rechecked explanation',await page.locator('.rechecked-evidence p').first().innerText().then(text=>text.trim().length>0));
   await page.screenshot({path:root+'/completed-mode-controls.png',fullPage:true});await page.unroute(origin+'/api/desk');
  }
 

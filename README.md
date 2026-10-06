@@ -91,6 +91,8 @@ For local setup, edit the ignored `.dev.vars` file and restart the server. The s
 - Fixtures are not real fulfillment integrations. No signed webhooks, outbox worker, webhook backfill or production monitoring is included. Audit is durable, not tamper-proof.
 
 ## Verification
+
+The reviewed CI run passed 49 tests with no failures, cancellations or skips. Browser workflow checks and provider evidence are reported separately.
 The original 12 automated tests are preserved, alongside mocked OpenRouter transport, privacy and refund-invariant tests. Original coverage: policy math, prompt injection, claim window, approval/amount validation, concurrency, lost-response reconciliation, cross-session sandbox duplicates, immutable retry payload/capture, old retry window, sandbox adapter contracts, API errors/origin checks and reset isolation.
 
 GitHub Actions browser QA passed desktop, mobile, keyboard, reduced-motion, seam and fixture workflows with no axe violations in the tested states. This is test evidence, not an accessibility certification. Actual sandbox refund evidence is recorded separately from fixture UI results.
