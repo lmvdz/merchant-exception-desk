@@ -1,15 +1,15 @@
 // Server-only. Sandbox is deliberately the only reachable PayPal environment.
 const BASE='https://api-m.sandbox.paypal.com';
 export class PayPalSandbox {
- constructor(env,fetcher=fetch){this.env=env;this.fetcher=fetcher;}
+ constructor(env,fetcher=fetch.bind(globalThis)){this.env=env;this.fetcher=fetcher;}
  async token(){
   if(!this.env.PAYPAL_CLIENT_ID||!this.env.PAYPAL_CLIENT_SECRET)throw new Error('PayPal sandbox credentials are not configured');
-  const response=await this.fetcher(`${BASE}/v1/oauth2/token`,{method:'POST',headers:{Authorization:`Basic ${btoa(`${this.env.PAYPAL_CLIENT_ID}:${this.env.PAYPAL_CLIENT_SECRET}`)}`,'Content-Type':'application/x-www-form-urlencoded'},body:'grant_type=client_credentials',signal:AbortSignal.timeout(15000)});
+  const response=await this.fetcher(`${BASE}/v1/oauth2/token`,{method:'POST',headers:{Authorization:`Basic ${btoa(`${this.env.PAYPAL_CLIENT_ID}:${this.env.PAYPAL_CLIENT_SECRET}`)}`,'Content-Type':'application/x-www-form-urlencoded'},body:'grant_type=client_credentials',redirect:'manual',signal:AbortSignal.timeout(15000)});
   if(!response.ok)throw new Error('PayPal sandbox authentication failed');return (await response.json()).access_token;
  }
  async request(path,{method='GET',body,requestId}={}){
-  const token=await this.token();const response=await this.fetcher(BASE+path,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(requestId?{'PayPal-Request-Id':requestId,Prefer:'return=representation'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(15000)});
-  const data=await response.json();if(!response.ok){const err=new Error(`PayPal sandbox returned HTTP ${response.status}${data.name?` (${data.name})`:''}`);err.status=response.status;throw err;}return data;
+  const token=await this.token();const response=await this.fetcher(BASE+path,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(requestId?{'PayPal-Request-Id':requestId,Prefer:'return=representation'}:{})},...(body?{body:JSON.stringify(body)}:{}),redirect:'manual',signal:AbortSignal.timeout(15000)});
+  if(!response.ok){const err=new Error(`PayPal sandbox returned HTTP ${response.status}`);err.status=response.status;throw err;}return await response.json();
  }
  capture(authorizationId,amountCents,currency,requestId){return this.request(`/v2/payments/authorizations/${encodeURIComponent(authorizationId)}/capture`,{method:'POST',requestId,body:{amount:{value:(amountCents/100).toFixed(2),currency_code:currency},final_capture:true}});}
  getCapture(captureId){return this.request(`/v2/payments/captures/${encodeURIComponent(captureId)}`);}

@@ -1,0 +1,40 @@
+name: Spatial visual review
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/hackathon-sites]
+    paths: [.github/workflows/spatial-review.yml]
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: macos-14
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        repo: [merchant-exception-desk, supplypilot-procurement, fieldnote-scheduler]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: lmvdz/${{ matrix.repo }}
+          ref: feat/hackathon-sites
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build
+        run: |
+          if [ -f scripts/build-native.mjs ]; then node scripts/build-native.mjs; else node scripts/build.mjs; fi
+      - name: Browser tools
+        run: |
+          npm install --prefix /tmp/browser-qa playwright @axe-core/playwright
+          /tmp/browser-qa/node_modules/.bin/playwright install chromium
+      - name: Render isolated fixtures
+        env:
+          QA_NODE_MODULES: /tmp/browser-qa/node_modules
+        run: node scripts/browser-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spatial-${{ matrix.repo }}
+          path: evidence/browser
