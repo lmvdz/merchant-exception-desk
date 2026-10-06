@@ -22,3 +22,7 @@ GitHub Actions runs build the source and exercise local fixture browser workflow
 ## Remaining submission gates
 
 Final independent design and submission review, a public English YouTube demonstration below three minutes, verified free judge access and entrant registration/eligibility remain open. No measured customer ROI, real inventory/fulfillment integration or production readiness is claimed.
+
+## Bounded prompt refinement
+
+The model now receives fulfillment evidence for a short evidence-only summary; the application supplies policy, approval and payment status separately. In one fixed run of three canonical merchant cases, two model summaries were retained. The third correctly described zero delivered items but triggered the unchanged conservative guard and used local fallback. One initial transport timeout used the normal retry; its usage was unreported. The three successful responses reported zero cost. This small synthetic check does not establish arbitrary-prose accuracy.
